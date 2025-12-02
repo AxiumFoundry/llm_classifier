@@ -281,7 +281,7 @@ This project includes a [Dev Container](https://containers.dev/) configuration f
 3. Press `Cmd+Shift+P` and select "Dev Containers: Reopen in Container"
 4. Wait for the container to build and start
 
-The container includes Ruby 3.3.2, GitHub CLI, and useful VS Code extensions.
+The container includes Ruby, GitHub CLI, and useful VS Code extensions.
 
 ### Local Setup
 
