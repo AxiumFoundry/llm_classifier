@@ -165,7 +165,7 @@ module LlmClassifier
       raw_categories = Array(json["categories"] || json["category"])
       valid_categories = raw_categories.select { |c| self.class.categories.include?(c.to_s) }
 
-      if valid_categories.empty? && !self.class.categories.empty?
+      if valid_categories.empty? && !self.class.categories.empty? && !self.class.multi_label
         return Result.failure(
           error: "No valid categories returned",
           raw_response: response,
