@@ -1,0 +1,48 @@
+# frozen_string_literal: true
+
+class <%= class_name %> < LlmClassifier::Classifier
+  categories <%= categories_array.map { |c| ":#{c}" }.join(", ") %>
+
+  # Uncomment to enable multi-label classification
+  # multi_label true
+
+  # Uncomment to override the default model
+  # model "gpt-4o-mini"
+
+  # Uncomment to override the default adapter
+  # adapter :openai
+
+  system_prompt <<~PROMPT
+    You are a classifier. Analyze the given input and classify it into the appropriate category.
+
+    Categories:
+<% categories_array.each do |cat| -%>
+    - <%= cat %>: [describe what this category means]
+<% end -%>
+
+    Respond with ONLY a JSON object:
+    {
+      "categories": ["category"],
+      "confidence": 0.0-1.0,
+      "reasoning": "Brief explanation"
+    }
+  PROMPT
+
+  # Uncomment to add domain knowledge
+  # knowledge do
+  #   important_terms %w[term1 term2 term3]
+  #   category_hints({
+  #     <%= categories_array.first %>: "hint for identifying this category"
+  #   })
+  # end
+
+  # Uncomment to preprocess input
+  # before_classify do |input|
+  #   input.downcase.strip
+  # end
+
+  # Uncomment to log or process results
+  # after_classify do |result|
+  #   Rails.logger.info("Classification result: #{result.category}")
+  # end
+end

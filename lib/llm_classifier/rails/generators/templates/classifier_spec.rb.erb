@@ -1,0 +1,15 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+RSpec.describe <%= class_name %> do
+  describe ".classify" do
+    it "classifies input into valid categories" do
+      # TODO: Add VCR cassette or mock the LLM response
+      result = described_class.classify("sample input text")
+
+      expect(result).to be_success
+      expect(result.category).to be_in(<%= categories_array %>)
+    end
+  end
+end

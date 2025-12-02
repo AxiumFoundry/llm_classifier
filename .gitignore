@@ -1,0 +1,15 @@
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/spec/fixtures/vcr_cassettes/
+/tmp/
+*.gem
+*.rbc
+.config
+.byebug_history
+Gemfile.lock
