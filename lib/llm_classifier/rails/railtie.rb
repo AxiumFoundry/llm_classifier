@@ -2,6 +2,7 @@
 
 module LlmClassifier
   module Rails
+    # Rails integration hook
     class Railtie < ::Rails::Railtie
       initializer "llm_classifier.configure_rails_initialization" do
         # Set Rails logger as default

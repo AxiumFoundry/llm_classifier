@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
+require "json"
+
 module LlmClassifier
+  # Base classifier class that provides a DSL for defining LLM-powered classifiers
   class Classifier
     class << self
       attr_reader :defined_categories, :defined_system_prompt, :defined_model,
@@ -47,10 +50,10 @@ module LlmClassifier
         end
       end
 
-      def knowledge(&block)
+      def knowledge(&)
         if block_given?
           @defined_knowledge = Knowledge.new
-          @defined_knowledge.instance_eval(&block)
+          @defined_knowledge.instance_eval(&)
         end
         @defined_knowledge
       end
@@ -126,9 +129,7 @@ module LlmClassifier
       prompt = self.class.system_prompt || default_system_prompt
       knowledge = self.class.knowledge
 
-      if knowledge
-        prompt = "#{prompt}\n\n#{knowledge.to_prompt}"
-      end
+      prompt = "#{prompt}\n\n#{knowledge.to_prompt}" if knowledge
 
       prompt
     end
@@ -162,26 +163,44 @@ module LlmClassifier
 
     def parse_response(response)
       json = JSON.parse(response)
-      raw_categories = Array(json["categories"] || json["category"])
-      valid_categories = raw_categories.select { |c| self.class.categories.include?(c.to_s) }
+      valid_categories = extract_valid_categories(json)
 
-      if valid_categories.empty? && !self.class.categories.empty? && !self.class.multi_label
-        return Result.failure(
-          error: "No valid categories returned",
-          raw_response: response,
-          metadata: { parsed: json }
-        )
-      end
+      return build_failure_result(response, json) if should_fail?(valid_categories)
+
+      build_success_result(json, valid_categories, response)
+    rescue JSON::ParserError => e
+      Result.failure(error: "Failed to parse response: #{e.message}", raw_response: response)
+    end
+
+    def extract_valid_categories(json)
+      raw_categories = Array(json["categories"] || json["category"])
+      raw_categories.select { |c| self.class.categories.include?(c.to_s) }
+    end
+
+    def should_fail?(valid_categories)
+      valid_categories.empty? && !self.class.categories.empty? && !self.class.multi_label
+    end
+
+    def build_failure_result(response, json)
+      Result.failure(
+        error: "No valid categories returned",
+        raw_response: response,
+        metadata: { parsed: json }
+      )
+    end
+
+    def build_success_result(json, valid_categories, response)
+      categories = self.class.multi_label ? valid_categories : [valid_categories.first].compact
+      excluded_keys = %w[categories category confidence reasoning]
+      metadata = json.reject { |k, _| excluded_keys.include?(k) }
 
       Result.success(
-        categories: self.class.multi_label ? valid_categories : [valid_categories.first].compact,
+        categories: categories,
         confidence: json["confidence"]&.to_f,
         reasoning: json["reasoning"],
         raw_response: response,
-        metadata: json.except("categories", "category", "confidence", "reasoning")
+        metadata: metadata
       )
-    rescue JSON::ParserError => e
-      Result.failure(error: "Failed to parse response: #{e.message}", raw_response: response)
     end
   end
 end

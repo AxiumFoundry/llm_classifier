@@ -1,0 +1,43 @@
+// For format details, see https://containers.dev/implementors/json_reference/.
+// For config options, see the README at: https://github.com/devcontainers/templates/tree/main/src/ruby
+{
+  "name": "llm_classifier",
+  "dockerComposeFile": "compose.yaml",
+  "service": "llm_classifier",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": { "moby": false }
+  },
+
+  "containerEnv": {
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  "forwardPorts": [],
+
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Shopify.ruby-lsp",
+        "Shopify.ruby-extensions-pack",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "Gruntfuggly.todo-tree",
+        "Anthropic.claude-code",
+        "GitHub.vscode-pull-request-github",
+        "ms-azuretools.vscode-docker",
+        "ms-azuretools.vscode-containers"
+      ]
+    }
+  },
+
+  // Uncomment to connect as root instead. More info: https://containers.dev/implementors/json_reference/#remoteUser.
+  // "remoteUser": "root",
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  "postCreateCommand": ""
+}

@@ -3,6 +3,7 @@
 module LlmClassifier
   module Rails
     module Concerns
+      # Rails concern for adding classification capabilities to ActiveRecord models
       module Classifiable
         extend ActiveSupport::Concern
 
@@ -17,9 +18,7 @@ module LlmClassifier
               input = build_classification_input(source)
               result = classifier_class.classify(input)
 
-              if result.success?
-                store_classification_result(attribute, result, storage_column)
-              end
+              store_classification_result(attribute, result, storage_column) if result.success?
 
               result
             end
@@ -50,7 +49,7 @@ module LlmClassifier
           when Proc
             source.call(self)
           when Array
-            source.map { |attr| [attr, send(attr)] }.to_h
+            source.to_h { |attr| [attr, send(attr)] }
           else
             source
           end

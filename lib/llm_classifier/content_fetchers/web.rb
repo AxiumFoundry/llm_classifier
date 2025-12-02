@@ -7,6 +7,7 @@ require "ipaddr"
 
 module LlmClassifier
   module ContentFetchers
+    # Web content fetcher with SSRF protection
     class Web < Base
       PRIVATE_IP_RANGES = [
         IPAddr.new("10.0.0.0/8"),
@@ -22,76 +23,50 @@ module LlmClassifier
       attr_reader :debug_info
 
       def initialize(timeout: nil, user_agent: nil)
+        super()
         @timeout = timeout || config.web_fetch_timeout
         @user_agent = user_agent || config.web_fetch_user_agent
         @debug_info = {}
       end
 
       def fetch(url)
-        return nil if url.blank?
+        return nil if url.nil? || url.empty?
 
         url = normalize_url(url)
         @debug_info[:url] = url
 
         response = fetch_url(url)
-        if response.blank?
-          @debug_info[:status] = "failed_empty_response"
-          return nil
-        end
+        return handle_empty_response if response.nil? || response.empty?
 
-        content = extract_text_content(response)
-        @debug_info[:status] = "success"
-        @debug_info[:content_length] = content&.length || 0
-        @debug_info[:content_preview] = content&.truncate(500)
-
-        content
+        process_successful_response(response)
       rescue StandardError => e
-        @debug_info[:status] = "error"
-        @debug_info[:error] = e.message
-        nil
+        handle_error(e)
       end
 
       private
 
       def normalize_url(url)
-        url.match?(/\Ahttps?:\/\//i) ? url : "https://#{url}"
+        url.match?(%r{\Ahttps?://}i) ? url : "https://#{url}"
       end
 
       def fetch_url(url, redirect_limit = 3)
         return nil if redirect_limit.zero?
 
         uri = URI.parse(url)
-        resolved_ip = resolve_and_validate_host(uri)
-        return nil unless resolved_ip
+        return nil unless validate_host_is_public(uri)
 
-        http = Net::HTTP.new(resolved_ip, uri.port)
-        http.use_ssl = (uri.scheme == "https")
-        http.open_timeout = @timeout
-        http.read_timeout = @timeout
-
-        request = Net::HTTP::Get.new(uri.request_uri)
-        request["Host"] = uri.host
-        request["User-Agent"] = @user_agent
-
-        response = http.request(request)
-        return response.body if response.is_a?(Net::HTTPSuccess)
-
-        if response.is_a?(Net::HTTPRedirection)
-          redirect_url = normalize_redirect_url(url, response["location"])
-          return fetch_url(redirect_url, redirect_limit - 1) if redirect_url
-        end
-
-        nil
+        response = send_http_request(uri)
+        handle_http_response(response, url, redirect_limit)
       end
 
-      def resolve_and_validate_host(uri)
-        return nil unless %w[http https].include?(uri.scheme)
-        return nil if uri.host.nil?
+      def validate_host_is_public(uri)
+        return false unless %w[http https].include?(uri.scheme)
+        return false if uri.host.nil?
 
         addresses = Resolv.getaddresses(uri.host)
-        addresses.find { |addr| !private_ip?(addr) }
+        addresses.any? { |addr| !private_ip?(addr) }
       rescue Resolv::ResolvError
-        nil
+        false
       end
 
       def private_ip?(address)
@@ -116,8 +91,62 @@ module LlmClassifier
         nil
       end
 
+      def handle_empty_response
+        @debug_info[:status] = "failed_empty_response"
+        nil
+      end
+
+      def process_successful_response(response)
+        content = extract_text_content(response)
+        @debug_info[:status] = "success"
+        @debug_info[:content_length] = content&.length || 0
+        @debug_info[:content_preview] = content ? truncate_string(content, 500) : nil
+        content
+      end
+
+      def handle_error(error)
+        @debug_info[:status] = "error"
+        @debug_info[:error] = error.message
+        nil
+      end
+
+      def send_http_request(uri)
+        http = build_http_client(uri)
+        request = build_http_request(uri)
+        http.request(request)
+      end
+
+      def build_http_client(uri)
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = (uri.scheme == "https")
+        http.open_timeout = @timeout
+        http.read_timeout = @timeout
+        http
+      end
+
+      def build_http_request(uri)
+        request = Net::HTTP::Get.new(uri.request_uri)
+        request["Host"] = uri.host
+        request["User-Agent"] = @user_agent
+        request
+      end
+
+      def handle_http_response(response, url, redirect_limit)
+        return response.body if response.is_a?(Net::HTTPSuccess)
+        return handle_redirect(response, url, redirect_limit) if response.is_a?(Net::HTTPRedirection)
+
+        nil
+      end
+
+      def handle_redirect(response, url, redirect_limit)
+        redirect_url = normalize_redirect_url(url, response["location"])
+        return fetch_url(redirect_url, redirect_limit - 1) if redirect_url
+
+        nil
+      end
+
       def extract_text_content(html)
-        return nil if html.blank?
+        return nil if html.nil? || html.empty?
 
         require_nokogiri!
 
@@ -126,7 +155,13 @@ module LlmClassifier
 
         text = doc.css("body").text
         text = text.gsub(/\s+/, " ").strip
-        text.truncate(2000)
+        truncate_string(text, 2000)
+      end
+
+      def truncate_string(str, max_length)
+        return str if str.length <= max_length
+
+        "#{str[0...max_length]}..."
       end
 
       def require_nokogiri!

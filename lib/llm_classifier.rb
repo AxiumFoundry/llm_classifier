@@ -10,6 +10,7 @@ loader.inflector.inflect(
 loader.ignore("#{__dir__}/llm_classifier/rails")
 loader.setup
 
+# LlmClassifier provides LLM-powered classification with pluggable adapters and Rails integration
 module LlmClassifier
   class Error < StandardError; end
   class ConfigurationError < Error; end
@@ -34,7 +35,7 @@ end
 loader.eager_load
 
 # Load Rails integration if Rails is present
-if defined?(::Rails::Railtie)
+if defined?(Rails::Railtie)
   require_relative "llm_classifier/rails/railtie"
   require_relative "llm_classifier/rails/concerns/classifiable"
 end

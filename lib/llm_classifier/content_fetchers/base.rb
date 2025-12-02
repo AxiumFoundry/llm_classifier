@@ -2,6 +2,7 @@
 
 module LlmClassifier
   module ContentFetchers
+    # Base content fetcher class
     class Base
       def fetch(source)
         raise NotImplementedError, "Subclasses must implement #fetch"

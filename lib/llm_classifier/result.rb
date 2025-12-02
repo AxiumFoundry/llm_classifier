@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 module LlmClassifier
+  # Result object returned from classification operations
   class Result
     attr_reader :categories, :confidence, :reasoning, :raw_response, :metadata, :error
 
-    def initialize(categories: [], confidence: nil, reasoning: nil, raw_response: nil, metadata: {}, error: nil)
+    def initialize(categories: [], confidence: nil, reasoning: nil, raw_response: nil, error: nil, metadata: {})
       @categories = Array(categories)
       @confidence = confidence
       @reasoning = reasoning

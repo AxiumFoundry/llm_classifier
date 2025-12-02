@@ -3,6 +3,7 @@
 require "logger"
 
 module LlmClassifier
+  # Configuration object for LlmClassifier settings
   class Configuration
     attr_accessor :adapter, :default_model, :openai_api_key, :anthropic_api_key,
                   :web_fetch_timeout, :web_fetch_user_agent, :default_queue,

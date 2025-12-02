@@ -2,17 +2,25 @@
 
 RSpec.describe LlmClassifier::Result do
   describe ".success" do
-    it "creates a successful result" do
-      result = described_class.success(
+    subject(:result) do
+      described_class.success(
         categories: %w[positive],
         confidence: 0.95,
         reasoning: "Strong positive words"
       )
+    end
 
+    it "creates a successful result" do
       expect(result).to be_success
       expect(result).not_to be_failure
+    end
+
+    it "sets categories correctly" do
       expect(result.category).to eq("positive")
       expect(result.categories).to eq(%w[positive])
+    end
+
+    it "sets confidence and reasoning" do
       expect(result.confidence).to eq(0.95)
       expect(result.reasoning).to eq("Strong positive words")
       expect(result.error).to be_nil

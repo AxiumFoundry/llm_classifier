@@ -4,6 +4,7 @@ require "rails/generators"
 
 module LlmClassifier
   module Generators
+    # Rails generator for creating classifier classes
     class ClassifierGenerator < ::Rails::Generators::NamedBase
       source_root File.expand_path("templates", __dir__)
 

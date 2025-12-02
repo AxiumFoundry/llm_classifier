@@ -2,6 +2,7 @@
 
 module LlmClassifier
   module ContentFetchers
+    # Null content fetcher that returns nothing
     class Null < Base
       def fetch(_source)
         nil

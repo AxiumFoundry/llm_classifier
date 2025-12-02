@@ -2,6 +2,7 @@
 
 module LlmClassifier
   module Adapters
+    # Adapter for the ruby_llm gem
     class RubyLlm < Base
       def chat(model:, system_prompt:, user_prompt:)
         ensure_ruby_llm_loaded!

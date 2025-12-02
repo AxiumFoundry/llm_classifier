@@ -117,16 +117,14 @@ RSpec.describe LlmClassifier::Classifier do
       Class.new(described_class) do
         categories :a, :b
 
-        before_classify do |input|
-          input.upcase
-        end
+        before_classify(&:upcase)
 
         after_classify do |result|
           @logged_result = result
         end
 
-        def self.logged_result
-          @logged_result
+        class << self
+          attr_reader :logged_result
         end
       end
     end

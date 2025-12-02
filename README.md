@@ -272,6 +272,19 @@ result.to_h          # => Hash representation
 
 ## Development
 
+### Using Dev Container (Recommended)
+
+This project includes a [Dev Container](https://containers.dev/) configuration for a consistent development environment.
+
+1. Open the project in VS Code
+2. Install the "Dev Containers" extension if not already installed
+3. Press `Cmd+Shift+P` and select "Dev Containers: Reopen in Container"
+4. Wait for the container to build and start
+
+The container includes Ruby 3.3.2, GitHub CLI, and useful VS Code extensions.
+
+### Local Setup
+
 ```bash
 # Clone the repo
 git clone https://github.com/AxiumFoundry/llm_classifier.git

@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 module LlmClassifier
+  # Domain knowledge container that converts structured data into LLM prompts
   class Knowledge
     def initialize
       @entries = {}
     end
 
-    def method_missing(name, *args, &block)
+    def method_missing(name, *args, &)
       if args.any?
         @entries[name] = args.first
       elsif @entries.key?(name)
