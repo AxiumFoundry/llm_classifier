@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "llm_classifier"
   spec.version = LlmClassifier::VERSION
   spec.authors = ["Dmitry Sychev"]
-  spec.email = ["dmitry@axiumfoundry.com"]
+  spec.email = ["dmitry.sychev@axiumfoundry.com"]
 
   spec.summary = "LLM-powered classification for Ruby with pluggable adapters and Rails integration"
   spec.description = "A flexible Ruby gem for building LLM-based classifiers. Define categories, " \
