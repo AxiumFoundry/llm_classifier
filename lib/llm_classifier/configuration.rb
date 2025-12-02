@@ -16,7 +16,7 @@ module LlmClassifier
       @web_fetch_timeout = 10
       @web_fetch_user_agent = "LlmClassifier/#{VERSION}"
       @default_queue = :classification
-      @logger = defined?(Rails) ? Rails.logger : Logger.new($stdout)
+      @logger = defined?(::Rails) ? ::Rails.logger : Logger.new($stdout)
     end
 
     def adapter_class

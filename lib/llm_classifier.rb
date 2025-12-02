@@ -34,7 +34,7 @@ end
 loader.eager_load
 
 # Load Rails integration if Rails is present
-if defined?(Rails::Railtie)
+if defined?(::Rails::Railtie)
   require_relative "llm_classifier/rails/railtie"
   require_relative "llm_classifier/rails/concerns/classifiable"
 end
