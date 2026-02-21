@@ -185,6 +185,17 @@ RSpec.describe LlmClassifier::Classifier do
       expect(result.category).to eq("positive")
     end
 
+    it "strips markdown code fences with CRLF line endings" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        "```json\r\n{\"categories\": [\"positive\"], \"confidence\": 0.9}\r\n```"
+      )
+
+      result = test_classifier.classify("test")
+
+      expect(result).to be_success
+      expect(result.category).to eq("positive")
+    end
+
     it "strips markdown code fences from hash adapter response" do
       allow(mock_adapter).to receive(:chat).and_return(
         { content: "```json\n{\"categories\": [\"positive\"], \"confidence\": 0.95}\n```", input_tokens: 100, output_tokens: 25 }

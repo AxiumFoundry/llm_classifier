@@ -183,7 +183,7 @@ module LlmClassifier
     end
 
     def strip_code_fences(text)
-      text.sub(/\A\s*```\w*\n?/, "").sub(/\n?```\s*\z/, "")
+      text.sub(/\A\s*```\w*\R?/, "").sub(/\R?```\s*\z/, "")
     end
 
     def extract_valid_categories(json)
