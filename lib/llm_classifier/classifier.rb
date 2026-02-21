@@ -172,7 +172,7 @@ module LlmClassifier
     end
 
     def parse_response(response, resolved_model = nil, token_data = {})
-      json = JSON.parse(response)
+      json = JSON.parse(strip_code_fences(response))
       valid_categories = extract_valid_categories(json)
 
       return build_failure_result(response, json) if should_fail?(valid_categories)
@@ -180,6 +180,10 @@ module LlmClassifier
       build_success_result(json, valid_categories, response, resolved_model, token_data)
     rescue JSON::ParserError => e
       Result.failure(error: "Failed to parse response: #{e.message}", raw_response: response)
+    end
+
+    def strip_code_fences(text)
+      text.sub(/\A\s*```\w*\n?/, "").sub(/\n?```\s*\z/, "")
     end
 
     def extract_valid_categories(json)

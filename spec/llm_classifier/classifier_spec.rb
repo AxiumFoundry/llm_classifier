@@ -161,6 +161,41 @@ RSpec.describe LlmClassifier::Classifier do
       expect(result.input_tokens).to be_nil
       expect(result.output_tokens).to be_nil
     end
+
+    it "strips markdown code fences from JSON response" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        "```json\n{\"categories\": [\"positive\"], \"confidence\": 0.95, \"reasoning\": \"Great words\"}\n```"
+      )
+
+      result = test_classifier.classify("I love this!")
+
+      expect(result).to be_success
+      expect(result.category).to eq("positive")
+      expect(result.confidence).to eq(0.95)
+    end
+
+    it "strips markdown code fences without language tag" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        "```\n{\"categories\": [\"positive\"], \"confidence\": 0.9}\n```"
+      )
+
+      result = test_classifier.classify("test")
+
+      expect(result).to be_success
+      expect(result.category).to eq("positive")
+    end
+
+    it "strips markdown code fences from hash adapter response" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        { content: "```json\n{\"categories\": [\"positive\"], \"confidence\": 0.95}\n```", input_tokens: 100, output_tokens: 25 }
+      )
+
+      result = test_classifier.classify("I love this!")
+
+      expect(result).to be_success
+      expect(result.category).to eq("positive")
+      expect(result.input_tokens).to eq(100)
+    end
   end
 
   describe "callbacks" do
