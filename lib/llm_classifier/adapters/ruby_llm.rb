@@ -11,7 +11,11 @@ module LlmClassifier
         chat_instance.with_instructions(system_prompt)
         response = chat_instance.ask(user_prompt)
 
-        response.content
+        {
+          content: response.content,
+          input_tokens: response.input_tokens,
+          output_tokens: response.output_tokens
+        }
       end
 
       private

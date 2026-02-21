@@ -53,18 +53,63 @@ RSpec.describe LlmClassifier::Result do
     end
   end
 
+  describe "#model" do
+    it "stores the model used for classification" do
+      result = described_class.success(
+        categories: %w[positive],
+        confidence: 0.9,
+        model: "gpt-5-nano"
+      )
+
+      expect(result.model).to eq("gpt-5-nano")
+    end
+
+    it "defaults to nil when not provided" do
+      result = described_class.success(categories: %w[positive])
+
+      expect(result.model).to be_nil
+    end
+  end
+
+  describe "#input_tokens and #output_tokens" do
+    it "stores token usage when provided" do
+      result = described_class.success(
+        categories: %w[positive],
+        confidence: 0.9,
+        input_tokens: 150,
+        output_tokens: 42
+      )
+
+      expect(result.input_tokens).to eq(150)
+      expect(result.output_tokens).to eq(42)
+    end
+
+    it "defaults to nil when not provided" do
+      result = described_class.success(categories: %w[positive])
+
+      expect(result.input_tokens).to be_nil
+      expect(result.output_tokens).to be_nil
+    end
+  end
+
   describe "#to_h" do
     it "returns hash representation" do
       result = described_class.success(
         categories: %w[positive],
         confidence: 0.9,
-        reasoning: "test"
+        reasoning: "test",
+        model: "gpt-5-nano",
+        input_tokens: 100,
+        output_tokens: 25
       )
 
       hash = result.to_h
       expect(hash[:success]).to be true
       expect(hash[:category]).to eq("positive")
       expect(hash[:categories]).to eq(%w[positive])
+      expect(hash[:model]).to eq("gpt-5-nano")
+      expect(hash[:input_tokens]).to eq(100)
+      expect(hash[:output_tokens]).to eq(25)
     end
   end
 end

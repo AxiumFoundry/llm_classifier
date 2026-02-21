@@ -110,6 +110,57 @@ RSpec.describe LlmClassifier::Classifier do
 
       expect(result).to be_success
     end
+
+    it "uses class-level model by default" do
+      classifier_with_model = Class.new(described_class) do
+        categories :positive, :negative
+        model "gpt-5-nano"
+      end
+
+      allow(mock_adapter).to receive(:chat).and_return(
+        '{"categories": ["positive"], "confidence": 0.9}'
+      )
+
+      result = classifier_with_model.classify("test")
+
+      expect(mock_adapter).to have_received(:chat).with(hash_including(model: "gpt-5-nano"))
+      expect(result.model).to eq("gpt-5-nano")
+    end
+
+    it "overrides model at runtime with model: option" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        '{"categories": ["positive"], "confidence": 0.9}'
+      )
+
+      result = test_classifier.classify("test", model: "claude-haiku-4-5")
+
+      expect(mock_adapter).to have_received(:chat).with(hash_including(model: "claude-haiku-4-5"))
+      expect(result.model).to eq("claude-haiku-4-5")
+    end
+
+    it "passes token usage from adapter response to result" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        { content: '{"categories": ["positive"], "confidence": 0.95}', input_tokens: 200, output_tokens: 50 }
+      )
+
+      result = test_classifier.classify("I love this!")
+
+      expect(result).to be_success
+      expect(result.input_tokens).to eq(200)
+      expect(result.output_tokens).to eq(50)
+    end
+
+    it "handles string responses without token data" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        '{"categories": ["positive"], "confidence": 0.95}'
+      )
+
+      result = test_classifier.classify("I love this!")
+
+      expect(result).to be_success
+      expect(result.input_tokens).to be_nil
+      expect(result.output_tokens).to be_nil
+    end
   end
 
   describe "callbacks" do

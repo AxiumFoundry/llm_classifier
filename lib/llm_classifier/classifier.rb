@@ -103,13 +103,23 @@ module LlmClassifier
 
     def perform_classification(processed_input)
       adapter_instance = build_adapter
+      resolved_model = options[:model] || self.class.model
       response = adapter_instance.chat(
-        model: self.class.model,
+        model: resolved_model,
         system_prompt: build_system_prompt,
         user_prompt: build_user_prompt(processed_input)
       )
 
-      parse_response(response)
+      content, token_data = extract_response_data(response)
+      parse_response(content, resolved_model, token_data)
+    end
+
+    def extract_response_data(response)
+      if response.is_a?(Hash)
+        [response[:content], { input_tokens: response[:input_tokens], output_tokens: response[:output_tokens] }]
+      else
+        [response, {}]
+      end
     end
 
     def build_adapter
@@ -161,13 +171,13 @@ module LlmClassifier
       end
     end
 
-    def parse_response(response)
+    def parse_response(response, resolved_model = nil, token_data = {})
       json = JSON.parse(response)
       valid_categories = extract_valid_categories(json)
 
       return build_failure_result(response, json) if should_fail?(valid_categories)
 
-      build_success_result(json, valid_categories, response)
+      build_success_result(json, valid_categories, response, resolved_model, token_data)
     rescue JSON::ParserError => e
       Result.failure(error: "Failed to parse response: #{e.message}", raw_response: response)
     end
@@ -189,7 +199,7 @@ module LlmClassifier
       )
     end
 
-    def build_success_result(json, valid_categories, response)
+    def build_success_result(json, valid_categories, response, resolved_model = nil, token_data = {})
       categories = self.class.multi_label ? valid_categories : [valid_categories.first].compact
       excluded_keys = %w[categories category confidence reasoning]
       metadata = json.reject { |k, _| excluded_keys.include?(k) }
@@ -199,7 +209,10 @@ module LlmClassifier
         confidence: json["confidence"]&.to_f,
         reasoning: json["reasoning"],
         raw_response: response,
-        metadata: metadata
+        metadata: metadata,
+        model: resolved_model,
+        input_tokens: token_data[:input_tokens],
+        output_tokens: token_data[:output_tokens]
       )
     end
   end
