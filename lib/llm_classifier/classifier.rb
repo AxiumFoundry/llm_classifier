@@ -68,8 +68,8 @@ module LlmClassifier
         @after_classify_callbacks << block
       end
 
-      def classify(input, **options)
-        new(input, **options).classify
+      def classify(input, **)
+        new(input, **).classify
       end
     end
 

@@ -6,7 +6,9 @@ module LlmClassifier
     attr_reader :categories, :confidence, :reasoning, :raw_response, :metadata, :error, :model,
                 :input_tokens, :output_tokens
 
-    def initialize(categories: [], confidence: nil, reasoning: nil, raw_response: nil, error: nil, metadata: {}, model: nil, input_tokens: nil, output_tokens: nil)
+    def initialize(categories: [], confidence: nil, reasoning: nil,
+                   raw_response: nil, error: nil, metadata: {},
+                   model: nil, input_tokens: nil, output_tokens: nil)
       @categories = Array(categories)
       @confidence = confidence
       @reasoning = reasoning
@@ -50,7 +52,9 @@ module LlmClassifier
     end
 
     class << self
-      def success(categories:, confidence: nil, reasoning: nil, raw_response: nil, metadata: {}, model: nil, input_tokens: nil, output_tokens: nil)
+      def success(categories:, confidence: nil, reasoning: nil,
+                  raw_response: nil, metadata: {},
+                  model: nil, input_tokens: nil, output_tokens: nil)
         new(
           categories: categories,
           confidence: confidence,
