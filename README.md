@@ -100,6 +100,27 @@ result = TopicClassifier.classify("Building a Rails API with React frontend")
 result.categories  # => ["rails", "javascript"]
 ```
 
+### Requiring Categories
+
+By default, multi-label classifiers return `Result.success` even when no categories match (empty array). Use `require_categories` to treat empty results as failures:
+
+```ruby
+class StrictClassifier < LlmClassifier::Classifier
+  categories :mechanic, :instructor, :gear
+  multi_label true
+  require_categories true  # Result.failure when no categories match
+
+  system_prompt "Classify this business..."
+end
+
+result = StrictClassifier.classify("Joe's Pizza Shop")
+result.success?    # => false (no motorcycle categories matched)
+result.failure?    # => true
+result.error       # => "No valid categories returned"
+```
+
+This is useful when classification is a filtering step and you need to distinguish "no match" from "classification succeeded."
+
 ### Domain Knowledge
 
 Inject domain-specific knowledge into your prompts:
