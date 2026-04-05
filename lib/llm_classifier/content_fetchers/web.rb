@@ -77,7 +77,7 @@ module LlmClassifier
       end
 
       def normalize_redirect_url(base_url, redirect_url)
-        return nil if redirect_url.blank?
+        return nil if redirect_url.nil? || redirect_url.empty?
 
         if redirect_url.start_with?("http://", "https://")
           redirect_url

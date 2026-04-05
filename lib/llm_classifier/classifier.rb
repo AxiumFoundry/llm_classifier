@@ -7,7 +7,8 @@ module LlmClassifier
   class Classifier
     class << self
       attr_reader :defined_categories, :defined_system_prompt, :defined_model,
-                  :defined_adapter, :defined_multi_label, :defined_knowledge,
+                  :defined_adapter, :defined_multi_label, :defined_require_categories,
+                  :defined_knowledge,
                   :before_classify_callbacks, :after_classify_callbacks
 
       def categories(*cats)
@@ -47,6 +48,14 @@ module LlmClassifier
           @defined_multi_label || false
         else
           @defined_multi_label = value
+        end
+      end
+
+      def require_categories(value = nil)
+        if value.nil?
+          @defined_require_categories || false
+        else
+          @defined_require_categories = value
         end
       end
 
@@ -192,7 +201,10 @@ module LlmClassifier
     end
 
     def should_fail?(valid_categories)
-      valid_categories.empty? && !self.class.categories.empty? && !self.class.multi_label
+      return false if valid_categories.any?
+      return false if self.class.categories.empty?
+
+      !self.class.multi_label || self.class.require_categories
     end
 
     def build_failure_result(response, json)
