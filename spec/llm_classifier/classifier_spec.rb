@@ -198,7 +198,8 @@ RSpec.describe LlmClassifier::Classifier do
 
     it "strips markdown code fences from hash adapter response" do
       allow(mock_adapter).to receive(:chat).and_return(
-        { content: "```json\n{\"categories\": [\"positive\"], \"confidence\": 0.95}\n```", input_tokens: 100, output_tokens: 25 }
+        { content: "```json\n{\"categories\": [\"positive\"], \"confidence\": 0.95}\n```",
+          input_tokens: 100, output_tokens: 25 }
       )
 
       result = test_classifier.classify("I love this!")
