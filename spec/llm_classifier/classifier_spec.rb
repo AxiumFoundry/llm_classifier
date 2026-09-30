@@ -80,6 +80,7 @@ RSpec.describe LlmClassifier::Classifier do
       expect(categories[:type]).to eq("array")
       expect(categories[:items]).to include(type: "string", enum: %w[ruby rails javascript python])
       expect(categories).not_to have_key(:minItems)
+      expect(categories[:description]).to include("Empty if none apply")
     end
 
     it "orders reasoning before the label so the model explains before committing" do
@@ -101,7 +102,12 @@ RSpec.describe LlmClassifier::Classifier do
 
     it "rejects output fields that shadow built-in fields" do
       expect { Class.new(described_class) { output_field :confidence } }
-        .to raise_error(ArgumentError, /built-in/)
+        .to raise_error(ArgumentError, /reserved/)
+    end
+
+    it "rejects a content output field, which would look like an adapter's response wrapper" do
+      expect { Class.new(described_class) { output_field :content } }
+        .to raise_error(ArgumentError, /reserved/)
     end
 
     it "omits the enum when no categories are defined" do

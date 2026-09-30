@@ -5,8 +5,11 @@ require "json"
 module LlmClassifier
   # Base classifier class that provides a DSL for defining LLM-powered classifiers
   class Classifier
-    # Response fields the classifier itself defines; output_field can't redeclare them.
+    # Response fields the classifier itself defines.
     BUILT_IN_FIELDS = %w[reasoning category categories confidence].freeze
+    # Names output_field can't take. "content" would make an adapter's bare parsed Hash
+    # look like the { content: } response wrapper.
+    RESERVED_FIELDS = (BUILT_IN_FIELDS + %w[content]).freeze
 
     class << self
       attr_reader :defined_categories, :defined_system_prompt, :defined_model,
@@ -74,7 +77,7 @@ module LlmClassifier
       # keywords for the field (type defaults to "string").
       def output_field(name, **schema)
         name = name.to_s
-        raise ArgumentError, "#{name} is a built-in output field" if BUILT_IN_FIELDS.include?(name)
+        raise ArgumentError, "#{name} is a reserved output field name" if RESERVED_FIELDS.include?(name)
 
         output_fields[name] = { type: "string" }.merge(schema)
       end
@@ -115,7 +118,9 @@ module LlmClassifier
       def label_schema
         category = { type: "string" }
         category[:enum] = categories if categories.any?
-        multi_label ? { type: "array", items: category } : category
+        return category unless multi_label
+
+        { type: "array", items: category, description: "Every category that applies. Empty if none apply." }
       end
     end
 
