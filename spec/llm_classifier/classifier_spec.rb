@@ -58,6 +58,39 @@ RSpec.describe LlmClassifier::Classifier do
       LlmClassifier.configure { |c| c.default_model = "test-model" }
       expect(test_classifier.model).to eq("test-model")
     end
+
+    it "leaves model unset by default so ruby_llm's default_model applies" do
+      expect(test_classifier.model).to be_nil
+    end
+  end
+
+  describe ".output_schema" do
+    it "constrains single-label output to exactly one known category" do
+      schema = test_classifier.output_schema
+
+      expect(schema[:properties][:category]).to include(type: "string", enum: %w[positive negative neutral])
+      expect(schema[:properties]).not_to have_key(:categories)
+      expect(schema[:required]).to eq(%w[reasoning category confidence])
+      expect(schema[:additionalProperties]).to be false
+    end
+
+    it "constrains multi-label output to an array of known categories" do
+      categories = multi_label_classifier.output_schema[:properties][:categories]
+
+      expect(categories[:type]).to eq("array")
+      expect(categories[:items]).to include(type: "string", enum: %w[ruby rails javascript python])
+      expect(categories).not_to have_key(:minItems)
+    end
+
+    it "orders reasoning before the label so the model explains before committing" do
+      expect(test_classifier.output_schema[:properties].keys.first).to eq(:reasoning)
+    end
+
+    it "omits the enum when no categories are defined" do
+      open_classifier = Class.new(described_class)
+
+      expect(open_classifier.output_schema[:properties][:category]).to eq(type: "string")
+    end
   end
 
   describe ".classify" do
@@ -162,51 +195,92 @@ RSpec.describe LlmClassifier::Classifier do
       expect(result.output_tokens).to be_nil
     end
 
-    it "strips markdown code fences from JSON response" do
-      allow(mock_adapter).to receive(:chat).and_return(
-        "```json\n{\"categories\": [\"positive\"], \"confidence\": 0.95, \"reasoning\": \"Great words\"}\n```"
-      )
+    it "passes the output schema to the adapter" do
+      allow(mock_adapter).to receive(:chat).and_return('{"category": "positive", "confidence": 0.9}')
 
-      result = test_classifier.classify("I love this!")
+      test_classifier.classify("test")
 
-      expect(result).to be_success
-      expect(result.category).to eq("positive")
-      expect(result.confidence).to eq(0.95)
+      expect(mock_adapter).to have_received(:chat).with(hash_including(schema: test_classifier.output_schema))
     end
 
-    it "strips markdown code fences without language tag" do
+    it "reads the single-label category field" do
       allow(mock_adapter).to receive(:chat).and_return(
-        "```\n{\"categories\": [\"positive\"], \"confidence\": 0.9}\n```"
+        '{"reasoning": "Upbeat", "category": "positive", "confidence": 0.9}'
       )
 
       result = test_classifier.classify("test")
 
       expect(result).to be_success
-      expect(result.category).to eq("positive")
+      expect(result.categories).to eq(%w[positive])
+      expect(result.reasoning).to eq("Upbeat")
     end
 
-    it "strips markdown code fences with CRLF line endings" do
+    it "accepts already-parsed structured output from the adapter" do
       allow(mock_adapter).to receive(:chat).and_return(
-        "```json\r\n{\"categories\": [\"positive\"], \"confidence\": 0.9}\r\n```"
-      )
-
-      result = test_classifier.classify("test")
-
-      expect(result).to be_success
-      expect(result.category).to eq("positive")
-    end
-
-    it "strips markdown code fences from hash adapter response" do
-      allow(mock_adapter).to receive(:chat).and_return(
-        { content: "```json\n{\"categories\": [\"positive\"], \"confidence\": 0.95}\n```",
+        { content: { "reasoning" => "Upbeat", "category" => "positive", "confidence" => 0.9 },
           input_tokens: 100, output_tokens: 25 }
       )
 
-      result = test_classifier.classify("I love this!")
+      result = test_classifier.classify("test")
 
       expect(result).to be_success
       expect(result.category).to eq("positive")
       expect(result.input_tokens).to eq(100)
+      expect(JSON.parse(result.raw_response)).to include("category" => "positive")
+    end
+
+    it "maps categories that differ only in capitalization back to the defined name" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        '{"categories": ["Ruby", "RAILS"], "confidence": 0.9}'
+      )
+
+      result = multi_label_classifier.classify("test")
+
+      expect(result.categories).to eq(%w[ruby rails])
+    end
+
+    it "returns failure for an empty response" do
+      allow(mock_adapter).to receive(:chat).and_return({ content: nil })
+
+      result = test_classifier.classify("test")
+
+      expect(result).to be_failure
+      expect(result.error).to include("Failed to parse")
+    end
+
+    it "does not ask for a JSON format in the default system prompt" do
+      allow(mock_adapter).to receive(:chat).and_return('{"category": "positive"}')
+
+      Class.new(described_class) { categories :positive, :negative }.classify("test")
+
+      expect(mock_adapter).to have_received(:chat) do |args|
+        expect(args[:system_prompt]).to include("exactly one of these categories: positive, negative")
+        expect(args[:system_prompt]).not_to include("JSON")
+      end
+    end
+  end
+
+  describe "adapter resolution" do
+    it "points users of removed direct adapters at ruby_llm" do
+      classifier = Class.new(described_class) do
+        categories :a
+        adapter :openai
+      end
+
+      result = classifier.classify("test")
+
+      expect(result).to be_failure
+      expect(result.error).to include(":openai adapter was removed", "ruby_llm")
+    end
+
+    it "instantiates a custom adapter class" do
+      custom = Class.new(LlmClassifier::Adapters::Base) do
+        def chat(**) = '{"category": "a"}'
+      end
+      classifier = Class.new(described_class) { categories :a }
+      classifier.adapter(custom)
+
+      expect(classifier.classify("test").category).to eq("a")
     end
   end
 

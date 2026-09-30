@@ -14,16 +14,10 @@ module LlmClassifier
         create_file "config/initializers/llm_classifier.rb", <<~RUBY
           # frozen_string_literal: true
 
+          # Provider API keys are configured in RubyLLM (config/initializers/ruby_llm.rb).
           LlmClassifier.configure do |config|
-            # LLM adapter to use. Options: :ruby_llm, :openai, :anthropic
-            config.adapter = :ruby_llm
-
-            # Default model for classification
-            config.default_model = "gpt-4o-mini"
-
-            # API keys (reads from ENV by default)
-            # config.openai_api_key = ENV["OPENAI_API_KEY"]
-            # config.anthropic_api_key = ENV["ANTHROPIC_API_KEY"]
+            # Default model for classification. nil uses RubyLLM.config.default_model.
+            # config.default_model = "claude-opus-5-5"
 
             # Content fetching settings
             config.web_fetch_timeout = 10
@@ -45,7 +39,7 @@ module LlmClassifier
         say "LlmClassifier installed successfully!", :green
         say "\n"
         say "Next steps:"
-        say "  1. Configure your API keys in config/initializers/llm_classifier.rb"
+        say "  1. Configure your provider API keys with RubyLLM.configure"
         say "  2. Generate a classifier: rails g llm_classifier:classifier SentimentClassifier"
         say "\n"
       end

@@ -10,7 +10,8 @@ group :development, :test do
   gem "rspec", "~> 3.0"
   gem "rubocop", "~> 1.21"
   gem "rubocop-rspec", "~> 3.0"
-  gem "ruby_llm", "~> 1.0"
+  # Pin a ruby_llm series for testing, e.g. RUBY_LLM_VERSION="~> 1.16"
+  gem "ruby_llm", ENV["RUBY_LLM_VERSION"] if ENV["RUBY_LLM_VERSION"]
   gem "vcr", "~> 6.0"
   gem "webmock", "~> 3.0"
 end

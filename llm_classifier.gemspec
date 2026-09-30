@@ -10,8 +10,8 @@ Gem::Specification.new do |spec|
 
   spec.summary = "LLM-powered classification for Ruby with pluggable adapters and Rails integration"
   spec.description = "A flexible Ruby gem for building LLM-based classifiers. Define categories, " \
-                     "system prompts, and domain knowledge using a clean DSL. Supports multiple " \
-                     "LLM backends (ruby_llm, OpenAI, Anthropic) and integrates seamlessly with Rails."
+                     "system prompts, and domain knowledge using a clean DSL. Responses are " \
+                     "schema-constrained via ruby_llm structured outputs, with optional Rails integration."
   spec.homepage = "https://github.com/AxiumFoundry/llm_classifier"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
@@ -32,5 +32,6 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "ruby_llm", ">= 1.14", "< 3"
   spec.add_dependency "zeitwerk", "~> 2.6"
 end

@@ -7,10 +7,7 @@ class <%= class_name %> < LlmClassifier::Classifier
   # multi_label true
 
   # Uncomment to override the default model
-  # model "gpt-4o-mini"
-
-  # Uncomment to override the default adapter
-  # adapter :openai
+  # model "claude-opus-5-5"
 
   system_prompt <<~PROMPT
     You are a classifier. Analyze the given input and classify it into the appropriate category.
@@ -19,13 +16,6 @@ class <%= class_name %> < LlmClassifier::Classifier
 <% categories_array.each do |cat| -%>
     - <%= cat %>: [describe what this category means]
 <% end -%>
-
-    Respond with ONLY a JSON object:
-    {
-      "categories": ["category"],
-      "confidence": 0.0-1.0,
-      "reasoning": "Brief explanation"
-    }
   PROMPT
 
   # Uncomment to add domain knowledge

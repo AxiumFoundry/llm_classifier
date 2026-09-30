@@ -1,6 +1,6 @@
 # LlmClassifier
 
-A flexible Ruby gem for building LLM-powered classifiers. Define categories, system prompts, and domain knowledge using a clean DSL. Supports multiple LLM backends and integrates seamlessly with Rails.
+A flexible Ruby gem for building LLM-powered classifiers. Define categories, system prompts, and domain knowledge using a clean DSL. Responses are constrained to a JSON Schema generated from your categories, so the model can only answer with a category you defined. Works with any provider [ruby_llm](https://rubyllm.com) supports and integrates with Rails.
 
 ## Installation
 
@@ -8,10 +8,16 @@ Add this line to your application's Gemfile:
 
 ```ruby
 gem 'llm_classifier'
+```
 
-# Add your preferred LLM adapter
-gem 'ruby_llm'  # recommended
-# or use direct API adapters (no additional gem needed)
+`llm_classifier` talks to LLMs through [ruby_llm](https://rubyllm.com) (1.14+ or 2.x), which is installed as a dependency. Configure your provider credentials there:
+
+```ruby
+# config/initializers/ruby_llm.rb
+RubyLLM.configure do |config|
+  config.anthropic_api_key = ENV["ANTHROPIC_API_KEY"]
+  config.default_model = "claude-opus-5-5"
+end
 ```
 
 And then execute:
@@ -41,16 +47,11 @@ class SentimentClassifier < LlmClassifier::Classifier
     - positive: Expresses satisfaction, happiness, or approval
     - negative: Expresses dissatisfaction, unhappiness, or criticism
     - neutral: Neither positive nor negative, factual or balanced
-
-    Respond with ONLY a JSON object:
-    {
-      "categories": ["category"],
-      "confidence": 0.0-1.0,
-      "reasoning": "Brief explanation"
-    }
   PROMPT
 end
 ```
+
+You don't need to describe the response format in the prompt. The gem sends a JSON Schema with every request (see [Structured Output](#structured-output)).
 
 ### 2. Use It
 
@@ -68,15 +69,8 @@ result.reasoning   # => "Strong positive language with 'love' and 'absolutely'"
 ```ruby
 # config/initializers/llm_classifier.rb
 LlmClassifier.configure do |config|
-  # LLM adapter: :ruby_llm (default), :openai, :anthropic
-  config.adapter = :ruby_llm
-
-  # Default model for classification
-  config.default_model = "gpt-4o-mini"
-
-  # API keys (reads from ENV by default)
-  config.openai_api_key = ENV["OPENAI_API_KEY"]
-  config.anthropic_api_key = ENV["ANTHROPIC_API_KEY"]
+  # Default model for classification. nil (the default) uses RubyLLM.config.default_model.
+  config.default_model = "claude-opus-5-5"
 
   # Content fetching settings
   config.web_fetch_timeout = 10
@@ -85,6 +79,28 @@ end
 ```
 
 ## Features
+
+### Structured Output
+
+Every request carries a JSON Schema built from the classifier's categories. ruby_llm passes it to the provider's native structured-output feature (for example, Anthropic's `output_config.format`), and the provider enforces it during generation. The model can't return malformed JSON or a category you didn't define. A refused or truncated response still comes back as a failed `Result`.
+
+```ruby
+SentimentClassifier.output_schema
+# => {
+#      type: "object",
+#      properties: {
+#        reasoning: { type: "string", ... },
+#        category: { type: "string", enum: ["positive", "negative", "neutral"] },
+#        confidence: { type: "number", ... }
+#      },
+#      required: ["reasoning", "category", "confidence"],
+#      additionalProperties: false
+#    }
+```
+
+Single-label classifiers get a `category` string, so the model must pick exactly one. Multi-label classifiers get a `categories` array, which may be empty. Categories are matched case-insensitively, because providers guarantee enum membership but not capitalization.
+
+The model needs to support structured outputs. Current Claude and OpenAI models do.
 
 ### Multi-label Classification
 
@@ -159,15 +175,19 @@ class AuditedClassifier < LlmClassifier::Classifier
 end
 ```
 
-### Override Adapter Per-Classifier
+### Override Model Per-Classifier
 
 ```ruby
 class CriticalClassifier < LlmClassifier::Classifier
   categories :high, :medium, :low
-  adapter :anthropic      # Use Anthropic for this classifier
-  model "claude-sonnet-4-20250514"  # Specific model
+  model "claude-opus-5-5"
 end
+
+# Or per call
+CriticalClassifier.classify(text, model: "claude-haiku-4-5")
 ```
+
+If ruby_llm raises `ModelNotFoundError` for a newly released model, refresh its registry with `RubyLLM.models.refresh!`.
 
 ## Rails Integration
 
@@ -247,22 +267,20 @@ Features:
 
 ## Adapters
 
-### Built-in Adapters
-
-- **`:ruby_llm`** - Uses the [ruby_llm](https://github.com/crmne/ruby_llm) gem (recommended)
-- **`:openai`** - Direct OpenAI API integration
-- **`:anthropic`** - Direct Anthropic API integration
+The built-in `:ruby_llm` adapter (the default) routes requests through [ruby_llm](https://rubyllm.com), so any provider it supports works.
 
 ### Custom Adapter
 
 ```ruby
 class MyCustomAdapter < LlmClassifier::Adapters::Base
-  def chat(model:, system_prompt:, user_prompt:)
-    # Make API call and return response text
+  def chat(model:, system_prompt:, user_prompt:, schema:)
+    # `schema` is the classifier's JSON Schema. Constrain the response to it and
+    # return the parsed Hash or the JSON string.
     MyLlmClient.complete(
       model: model,
       system: system_prompt,
-      prompt: user_prompt
+      prompt: user_prompt,
+      json_schema: schema
     )
   end
 end
@@ -285,7 +303,7 @@ result.category      # => "primary_category" (first)
 result.categories    # => ["cat1", "cat2"] (all)
 result.confidence    # => 0.95
 result.reasoning     # => "Explanation from LLM"
-result.raw_response  # => Original JSON string
+result.raw_response  # => Response JSON string
 result.metadata      # => Additional data from response
 result.error         # => Error message if failed
 result.to_h          # => Hash representation
