@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-LlmClassifier - Ruby gem for building LLM-powered classifiers with a clean DSL. Supports multiple LLM backends (ruby_llm, OpenAI, Anthropic) and optional Rails integration.
+LlmClassifier - Ruby gem for building LLM-powered classifiers with a clean DSL. Talks to LLMs through ruby_llm (>= 1.14, < 3) with schema-constrained structured output, plus optional Rails integration.
 
 - Ruby >= 3.2, RSpec, RuboCop, Zeitwerk autoloading
 - No Rails dependency in core; Rails integration is opt-in via `lib/llm_classifier/rails/`
-- CI tests against Ruby 3.4 and 4.0
+- CI tests against Ruby 3.4 and 4.0, each with ruby_llm 1.14.0 (the floor), `~> 1.16`, and `~> 2.0` (`RUBY_LLM_VERSION` env var pins the version in the Gemfile)
 
 ## Development with Docker
 
@@ -65,10 +65,10 @@ All sibling projects are located in `/home/axium/projects/`. The `prospector` ge
 
 ## Key Classes
 
-- `LlmClassifier::Classifier` - Core DSL and classification pipeline
+- `LlmClassifier::Classifier` - Core DSL and classification pipeline; `.output_schema` builds the JSON Schema sent with every request
 - `LlmClassifier::Result` - Value object returned from every classification
 - `LlmClassifier::Knowledge` - Domain knowledge DSL container (`method_missing`-based)
-- `LlmClassifier::Configuration` - Global config (adapter, model, API keys)
+- `LlmClassifier::Configuration` - Global config (adapter, default model, web fetch, queue). API keys live in `RubyLLM.configure`
 - `LlmClassifier::Adapters::Base` - Abstract adapter interface
 - `LlmClassifier::ContentFetchers::Web` - HTTP fetcher with SSRF protection
 - `LlmClassifier::Rails::Concerns::Classifiable` - ActiveRecord integration

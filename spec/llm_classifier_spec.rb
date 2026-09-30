@@ -11,22 +11,27 @@ RSpec.describe LlmClassifier do
     end
 
     it "persists configuration" do
+      custom_adapter = Class.new(LlmClassifier::Adapters::Base)
       described_class.configure do |config|
-        config.adapter = :openai
-        config.default_model = "gpt-4"
+        config.adapter = custom_adapter
+        config.default_model = "claude-haiku-4-5"
       end
 
-      expect(described_class.configuration.adapter).to eq(:openai)
-      expect(described_class.configuration.default_model).to eq("gpt-4")
+      expect(described_class.configuration.adapter).to eq(custom_adapter)
+      expect(described_class.configuration.default_model).to eq("claude-haiku-4-5")
     end
   end
 
   describe ".reset_configuration!" do
     it "resets to defaults" do
-      described_class.configure { |c| c.adapter = :anthropic }
+      described_class.configure do |c|
+        c.adapter = Class.new(LlmClassifier::Adapters::Base)
+        c.default_model = "claude-haiku-4-5"
+      end
       described_class.reset_configuration!
 
       expect(described_class.configuration.adapter).to eq(:ruby_llm)
+      expect(described_class.configuration.default_model).to be_nil
     end
   end
 end

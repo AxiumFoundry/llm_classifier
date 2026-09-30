@@ -2,32 +2,24 @@
 
 module LlmClassifier
   module Adapters
-    # Adapter for the ruby_llm gem
+    # Adapter for the ruby_llm gem. Provider credentials and the fallback model come from
+    # RubyLLM's own configuration.
     class RubyLlm < Base
-      def chat(model:, system_prompt:, user_prompt:)
-        ensure_ruby_llm_loaded!
+      def chat(model:, system_prompt:, user_prompt:, schema:)
+        require "ruby_llm" unless defined?(::RubyLLM)
 
-        chat_instance = ::RubyLLM.chat(model: model)
-        chat_instance.with_instructions(system_prompt)
-        response = chat_instance.ask(user_prompt)
+        chat = ::RubyLLM.chat(model: model)
+        response = chat.with_instructions(system_prompt)
+                       .with_schema(name: "classification", schema: schema, strict: true)
+                       .ask(user_prompt)
 
+        # ruby_llm 1.x returns structured content as a Hash, 2.x as a JSON String.
         {
           content: response.content,
-          input_tokens: response.input_tokens,
-          output_tokens: response.output_tokens
+          input_tokens: response.tokens&.input,
+          output_tokens: response.tokens&.output,
+          model: chat.model&.id
         }
-      end
-
-      private
-
-      def ensure_ruby_llm_loaded!
-        return if defined?(::RubyLLM)
-
-        begin
-          require "ruby_llm"
-        rescue LoadError
-          raise AdapterError, "ruby_llm gem is not installed. Add it to your Gemfile: gem 'ruby_llm'"
-        end
       end
     end
   end

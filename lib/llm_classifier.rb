@@ -3,10 +3,7 @@
 require "zeitwerk"
 
 loader = Zeitwerk::Loader.for_gem
-loader.inflector.inflect(
-  "openai" => "OpenAI",
-  "ruby_llm" => "RubyLlm"
-)
+loader.inflector.inflect("ruby_llm" => "RubyLlm")
 loader.ignore("#{__dir__}/llm_classifier/rails")
 loader.setup
 

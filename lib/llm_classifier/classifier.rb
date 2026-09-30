@@ -5,6 +5,12 @@ require "json"
 module LlmClassifier
   # Base classifier class that provides a DSL for defining LLM-powered classifiers
   class Classifier
+    # Response fields the classifier itself defines.
+    BUILT_IN_FIELDS = %w[reasoning category categories confidence].freeze
+    # Names output_field can't take. "content" would make an adapter's bare parsed Hash
+    # look like the { content: } response wrapper.
+    RESERVED_FIELDS = (BUILT_IN_FIELDS + %w[content]).freeze
+
     class << self
       attr_reader :defined_categories, :defined_system_prompt, :defined_model,
                   :defined_adapter, :defined_multi_label, :defined_require_categories,
@@ -67,6 +73,19 @@ module LlmClassifier
         @defined_knowledge
       end
 
+      # Declares an extra response field, returned in Result#metadata. Options are JSON Schema
+      # keywords for the field (type defaults to "string").
+      def output_field(name, **schema)
+        name = name.to_s
+        raise ArgumentError, "#{name} is a reserved output field name" if RESERVED_FIELDS.include?(name)
+
+        output_fields[name] = { type: "string" }.merge(schema)
+      end
+
+      def output_fields
+        @output_fields ||= {}
+      end
+
       def before_classify(&block)
         @before_classify_callbacks ||= []
         @before_classify_callbacks << block
@@ -79,6 +98,29 @@ module LlmClassifier
 
       def classify(input, **)
         new(input, **).classify
+      end
+
+      # JSON Schema the LLM response is constrained to. Reasoning comes first so the
+      # model explains itself before committing to a label.
+      def output_schema
+        label_key = multi_label ? :categories : :category
+        properties = {
+          reasoning: { type: "string", description: "Brief explanation of the classification" },
+          label_key => label_schema,
+          confidence: { type: "number", description: "Confidence from 0.0 to 1.0" }
+        }.merge(output_fields.transform_keys(&:to_sym))
+
+        { type: "object", properties: properties, required: properties.keys.map(&:to_s), additionalProperties: false }
+      end
+
+      private
+
+      def label_schema
+        category = { type: "string" }
+        category[:enum] = categories if categories.any?
+        return category unless multi_label
+
+        { type: "array", items: category, description: "Every category that applies. Empty if none apply." }
       end
     end
 
@@ -116,32 +158,32 @@ module LlmClassifier
       response = adapter_instance.chat(
         model: resolved_model,
         system_prompt: build_system_prompt,
-        user_prompt: build_user_prompt(processed_input)
+        user_prompt: build_user_prompt(processed_input),
+        schema: self.class.output_schema
       )
 
-      content, token_data = extract_response_data(response)
-      parse_response(content, resolved_model, token_data)
+      content, response_meta = extract_response_data(response)
+      parse_response(content, resolved_model || response_meta[:model], response_meta)
     end
 
+    # Adapters return the content itself, or wrap it as { content:, input_tokens:, output_tokens:, model: }.
     def extract_response_data(response)
-      if response.is_a?(Hash)
-        [response[:content], { input_tokens: response[:input_tokens], output_tokens: response[:output_tokens] }]
-      else
-        [response, {}]
-      end
+      return [response, {}] unless response.is_a?(Hash) && response.key?(:content)
+
+      [response[:content], response.slice(:input_tokens, :output_tokens, :model)]
     end
 
     def build_adapter
       adapter_name = self.class.adapter
-      adapter_class = case adapter_name
-                      when :ruby_llm then Adapters::RubyLlm
-                      when :openai then Adapters::OpenAI
-                      when :anthropic then Adapters::Anthropic
-                      when Class then adapter_name
-                      else
-                        raise AdapterError, "Unknown adapter: #{adapter_name}"
-                      end
-      adapter_class.new
+      case adapter_name
+      when :ruby_llm then Adapters::RubyLlm.new
+      when Class then adapter_name.new
+      when :openai, :anthropic
+        raise AdapterError, "The :#{adapter_name} adapter was removed in 0.3.0. " \
+                            "Configure the provider in RubyLLM and use the :ruby_llm adapter."
+      else
+        raise AdapterError, "Unknown adapter: #{adapter_name}"
+      end
     end
 
     def build_system_prompt
@@ -157,16 +199,8 @@ module LlmClassifier
       categories = self.class.categories.join(", ")
       multi = self.class.multi_label
 
-      <<~PROMPT
-        You are a classifier. Classify the given input into #{multi ? "one or more of" : "exactly one of"} these categories: #{categories}.
-
-        Respond with ONLY a JSON object in this format:
-        {
-          "categories": [#{multi ? '"category1", "category2"' : '"category"'}],
-          "confidence": 0.0-1.0,
-          "reasoning": "Brief explanation"
-        }
-      PROMPT
+      scope = multi ? "every category that applies (none if none apply)" : "exactly one of these categories"
+      "You are a classifier. Classify the given input into #{scope}: #{categories}."
     end
 
     def build_user_prompt(processed_input)
@@ -180,24 +214,24 @@ module LlmClassifier
       end
     end
 
-    def parse_response(response, resolved_model = nil, token_data = {})
-      json = JSON.parse(strip_code_fences(response))
+    # Adapters return structured output either already parsed (a Hash) or as JSON text.
+    def parse_response(content, resolved_model = nil, token_data = {})
+      json = content.is_a?(Hash) ? content.transform_keys(&:to_s) : JSON.parse(content.to_s)
+      raw_response = content.is_a?(String) ? content : JSON.generate(json)
       valid_categories = extract_valid_categories(json)
 
-      return build_failure_result(response, json) if should_fail?(valid_categories)
+      return build_failure_result(raw_response, json) if should_fail?(valid_categories)
 
-      build_success_result(json, valid_categories, response, resolved_model, token_data)
+      build_success_result(json, valid_categories, raw_response, resolved_model, token_data)
     rescue JSON::ParserError => e
-      Result.failure(error: "Failed to parse response: #{e.message}", raw_response: response)
+      Result.failure(error: "Failed to parse response: #{e.message}", raw_response: content)
     end
 
-    def strip_code_fences(text)
-      text.sub(/\A\s*```\w*\R?/, "").sub(/\R?```\s*\z/, "")
-    end
-
+    # Structured outputs guarantee enum membership but not capitalization, so match
+    # case-insensitively and return the category as defined.
     def extract_valid_categories(json)
-      raw_categories = Array(json["categories"] || json["category"])
-      raw_categories.select { |c| self.class.categories.include?(c.to_s) }
+      defined = self.class.categories.to_h { |c| [c.downcase, c] }
+      Array(json["categories"] || json["category"]).filter_map { |c| defined[c.to_s.downcase] }.uniq
     end
 
     def should_fail?(valid_categories)
@@ -217,8 +251,7 @@ module LlmClassifier
 
     def build_success_result(json, valid_categories, response, resolved_model = nil, token_data = {})
       categories = self.class.multi_label ? valid_categories : [valid_categories.first].compact
-      excluded_keys = %w[categories category confidence reasoning]
-      metadata = json.reject { |k, _| excluded_keys.include?(k) }
+      metadata = json.reject { |k, _| BUILT_IN_FIELDS.include?(k) }
 
       Result.success(
         categories: categories,
