@@ -24,8 +24,15 @@ RSpec.describe LlmClassifier::Adapters::RubyLlm do
     }
   end
 
-  before do
+  around do |example|
+    original = RubyLLM.config.anthropic_api_key
     RubyLLM.configure { |c| c.anthropic_api_key = "test-key" }
+    example.run
+  ensure
+    RubyLLM.configure { |c| c.anthropic_api_key = original }
+  end
+
+  before do
     stub_request(:post, messages_url)
       .to_return(status: 200, body: anthropic_reply.to_json, headers: { "Content-Type" => "application/json" })
   end
@@ -58,5 +65,15 @@ RSpec.describe LlmClassifier::Adapters::RubyLlm do
     expect(result.confidence).to eq(0.92)
     expect(result.input_tokens).to eq(120)
     expect(result.output_tokens).to eq(30)
+  end
+
+  it "reports RubyLLM's default model when the classifier sets none" do
+    original = RubyLLM.config.default_model
+    RubyLLM.configure { |c| c.default_model = "claude-haiku-4-5" }
+    unset_model = Class.new(LlmClassifier::Classifier) { categories :positive, :negative }
+
+    expect(unset_model.classify("I love this!").model).to eq("claude-haiku-4-5")
+  ensure
+    RubyLLM.configure { |c| c.default_model = original }
   end
 end

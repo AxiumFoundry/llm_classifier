@@ -8,16 +8,17 @@ module LlmClassifier
       def chat(model:, system_prompt:, user_prompt:, schema:)
         require "ruby_llm" unless defined?(::RubyLLM)
 
-        response = ::RubyLLM.chat(model: model)
-                            .with_instructions(system_prompt)
-                            .with_schema(name: "classification", schema: schema, strict: true)
-                            .ask(user_prompt)
+        chat = ::RubyLLM.chat(model: model)
+        response = chat.with_instructions(system_prompt)
+                       .with_schema(name: "classification", schema: schema, strict: true)
+                       .ask(user_prompt)
 
         # ruby_llm 1.x returns structured content as a Hash, 2.x as a JSON String.
         {
           content: response.content,
           input_tokens: response.tokens&.input,
-          output_tokens: response.tokens&.output
+          output_tokens: response.tokens&.output,
+          model: chat.model&.id
         }
       end
     end

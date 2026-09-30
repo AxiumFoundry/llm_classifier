@@ -5,6 +5,9 @@ require "json"
 module LlmClassifier
   # Base classifier class that provides a DSL for defining LLM-powered classifiers
   class Classifier
+    # Response fields the classifier itself defines; output_field can't redeclare them.
+    BUILT_IN_FIELDS = %w[reasoning category categories confidence].freeze
+
     class << self
       attr_reader :defined_categories, :defined_system_prompt, :defined_model,
                   :defined_adapter, :defined_multi_label, :defined_require_categories,
@@ -67,6 +70,19 @@ module LlmClassifier
         @defined_knowledge
       end
 
+      # Declares an extra response field, returned in Result#metadata. Options are JSON Schema
+      # keywords for the field (type defaults to "string").
+      def output_field(name, **schema)
+        name = name.to_s
+        raise ArgumentError, "#{name} is a built-in output field" if BUILT_IN_FIELDS.include?(name)
+
+        output_fields[name] = { type: "string" }.merge(schema)
+      end
+
+      def output_fields
+        @output_fields ||= {}
+      end
+
       def before_classify(&block)
         @before_classify_callbacks ||= []
         @before_classify_callbacks << block
@@ -85,16 +101,13 @@ module LlmClassifier
       # model explains itself before committing to a label.
       def output_schema
         label_key = multi_label ? :categories : :category
-        {
-          type: "object",
-          properties: {
-            reasoning: { type: "string", description: "Brief explanation of the classification" },
-            label_key => label_schema,
-            confidence: { type: "number", description: "Confidence from 0.0 to 1.0" }
-          },
-          required: ["reasoning", label_key.to_s, "confidence"],
-          additionalProperties: false
-        }
+        properties = {
+          reasoning: { type: "string", description: "Brief explanation of the classification" },
+          label_key => label_schema,
+          confidence: { type: "number", description: "Confidence from 0.0 to 1.0" }
+        }.merge(output_fields.transform_keys(&:to_sym))
+
+        { type: "object", properties: properties, required: properties.keys.map(&:to_s), additionalProperties: false }
       end
 
       private
@@ -144,16 +157,15 @@ module LlmClassifier
         schema: self.class.output_schema
       )
 
-      content, token_data = extract_response_data(response)
-      parse_response(content, resolved_model, token_data)
+      content, response_meta = extract_response_data(response)
+      parse_response(content, resolved_model || response_meta[:model], response_meta)
     end
 
+    # Adapters return the content itself, or wrap it as { content:, input_tokens:, output_tokens:, model: }.
     def extract_response_data(response)
-      if response.is_a?(Hash)
-        [response[:content], { input_tokens: response[:input_tokens], output_tokens: response[:output_tokens] }]
-      else
-        [response, {}]
-      end
+      return [response, {}] unless response.is_a?(Hash) && response.key?(:content)
+
+      [response[:content], response.slice(:input_tokens, :output_tokens, :model)]
     end
 
     def build_adapter
@@ -182,8 +194,8 @@ module LlmClassifier
       categories = self.class.categories.join(", ")
       multi = self.class.multi_label
 
-      "You are a classifier. Classify the given input into " \
-        "#{multi ? "one or more of" : "exactly one of"} these categories: #{categories}."
+      scope = multi ? "every category that applies (none if none apply)" : "exactly one of these categories"
+      "You are a classifier. Classify the given input into #{scope}: #{categories}."
     end
 
     def build_user_prompt(processed_input)
@@ -234,8 +246,7 @@ module LlmClassifier
 
     def build_success_result(json, valid_categories, response, resolved_model = nil, token_data = {})
       categories = self.class.multi_label ? valid_categories : [valid_categories.first].compact
-      excluded_keys = %w[categories category confidence reasoning]
-      metadata = json.reject { |k, _| excluded_keys.include?(k) }
+      metadata = json.reject { |k, _| BUILT_IN_FIELDS.include?(k) }
 
       Result.success(
         categories: categories,

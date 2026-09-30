@@ -86,6 +86,24 @@ RSpec.describe LlmClassifier::Classifier do
       expect(test_classifier.output_schema[:properties].keys.first).to eq(:reasoning)
     end
 
+    it "adds declared output fields as required properties" do
+      classifier = Class.new(described_class) do
+        categories :a
+        output_field :evidence, description: "What confirmed it"
+        output_field :tags, type: "array", items: { type: "string" }
+      end
+      schema = classifier.output_schema
+
+      expect(schema[:properties][:evidence]).to eq(type: "string", description: "What confirmed it")
+      expect(schema[:properties][:tags]).to eq(type: "array", items: { type: "string" })
+      expect(schema[:required]).to eq(%w[reasoning category confidence evidence tags])
+    end
+
+    it "rejects output fields that shadow built-in fields" do
+      expect { Class.new(described_class) { output_field :confidence } }
+        .to raise_error(ArgumentError, /built-in/)
+    end
+
     it "omits the enum when no categories are defined" do
       open_classifier = Class.new(described_class)
 
@@ -229,6 +247,34 @@ RSpec.describe LlmClassifier::Classifier do
       expect(JSON.parse(result.raw_response)).to include("category" => "positive")
     end
 
+    it "accepts a bare parsed Hash that is not wrapped in content:" do
+      allow(mock_adapter).to receive(:chat).and_return(
+        { "reasoning" => "Upbeat", "category" => "positive", "confidence" => 0.9 }
+      )
+
+      result = test_classifier.classify("test")
+
+      expect(result).to be_success, result.error
+      expect(result.category).to eq("positive")
+      expect(result.input_tokens).to be_nil
+    end
+
+    it "returns declared output fields in metadata" do
+      classifier = Class.new(described_class) do
+        categories :a
+        output_field :evidence
+      end
+      allow(mock_adapter).to receive(:chat).and_return({ content: { "category" => "a", "evidence" => "Honda" } })
+
+      expect(classifier.classify("test").metadata).to eq("evidence" => "Honda")
+    end
+
+    it "reports the model the adapter used when the classifier sets none" do
+      allow(mock_adapter).to receive(:chat).and_return({ content: '{"category": "positive"}', model: "gpt-5.6" })
+
+      expect(test_classifier.classify("test").model).to eq("gpt-5.6")
+    end
+
     it "maps categories that differ only in capitalization back to the defined name" do
       allow(mock_adapter).to receive(:chat).and_return(
         '{"categories": ["Ruby", "RAILS"], "confidence": 0.9}'
@@ -256,6 +302,20 @@ RSpec.describe LlmClassifier::Classifier do
       expect(mock_adapter).to have_received(:chat) do |args|
         expect(args[:system_prompt]).to include("exactly one of these categories: positive, negative")
         expect(args[:system_prompt]).not_to include("JSON")
+      end
+    end
+
+    it "tells multi-label classifiers that no category is a valid answer" do
+      allow(mock_adapter).to receive(:chat).and_return('{"categories": []}')
+
+      classifier = Class.new(described_class) do
+        categories :a, :b
+        multi_label true
+      end
+      classifier.classify("test")
+
+      expect(mock_adapter).to have_received(:chat) do |args|
+        expect(args[:system_prompt]).to include("every category that applies (none if none apply): a, b")
       end
     end
   end

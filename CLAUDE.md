@@ -4,7 +4,7 @@ LlmClassifier - Ruby gem for building LLM-powered classifiers with a clean DSL. 
 
 - Ruby >= 3.2, RSpec, RuboCop, Zeitwerk autoloading
 - No Rails dependency in core; Rails integration is opt-in via `lib/llm_classifier/rails/`
-- CI tests against Ruby 3.4 and 4.0, each with ruby_llm 1.x and 2.x (`RUBY_LLM_VERSION` env var pins the series in the Gemfile)
+- CI tests against Ruby 3.4 and 4.0, each with ruby_llm 1.14.0 (the floor), `~> 1.16`, and `~> 2.0` (`RUBY_LLM_VERSION` env var pins the version in the Gemfile)
 
 ## Development with Docker
 

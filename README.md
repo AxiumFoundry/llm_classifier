@@ -98,6 +98,22 @@ SentimentClassifier.output_schema
 #    }
 ```
 
+### Extra Output Fields
+
+The schema doesn't allow fields you haven't declared. To have the model return more than the category, declare each extra field with `output_field`. Options are JSON Schema keywords, and `type` defaults to `"string"`. The values come back in `result.metadata`:
+
+```ruby
+class BusinessClassifier < LlmClassifier::Classifier
+  categories :dealership, :mechanic, :parts
+  multi_label true
+  output_field :evidence, description: "Words or brands that confirmed the category"
+  output_field :brands, type: "array", items: { type: "string" }
+end
+
+result = BusinessClassifier.classify("Joe's Harley-Davidson Service")
+result.metadata  # => { "evidence" => "Harley-Davidson, Service", "brands" => ["Harley-Davidson"] }
+```
+
 Single-label classifiers get a `category` string, so the model must pick exactly one. Multi-label classifiers get a `categories` array, which may be empty. Categories are matched case-insensitively, because providers guarantee enum membership but not capitalization.
 
 The model needs to support structured outputs. Current Claude and OpenAI models do.
@@ -304,7 +320,8 @@ result.categories    # => ["cat1", "cat2"] (all)
 result.confidence    # => 0.95
 result.reasoning     # => "Explanation from LLM"
 result.raw_response  # => Response JSON string
-result.metadata      # => Additional data from response
+result.model         # => Model used (the classifier's, or ruby_llm's default)
+result.metadata      # => Values of declared output_field entries
 result.error         # => Error message if failed
 result.to_h          # => Hash representation
 ```
