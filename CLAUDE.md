@@ -63,6 +63,13 @@ All sibling projects are located in `/home/axium/projects/`. The `prospector` ge
 - Run the full test suite and rubocop before creating a PR.
 - Version bumps in `lib/llm_classifier/version.rb` go in the feature PR, not separately.
 
+## Releasing
+
+- After the version-bump PR is merged, tag the merge commit on `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`
+- The tag push runs CI. Once tests pass, the `release` job (GitHub environment `release`) publishes to RubyGems.org via trusted publishing (`rubygems/release-gem`, OIDC). No API key or OTP is needed. It fails if the tag doesn't match `version.rb`
+- The rubygems.org trusted publisher is bound to workflow file `main.yml` and environment `release`. Renaming either breaks publishing until the publisher is updated on rubygems.org
+- Then create the GitHub release from the CHANGELOG section: `gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes "..."`
+
 ## Key Classes
 
 - `LlmClassifier::Classifier` - Core DSL and classification pipeline; `.output_schema` builds the JSON Schema sent with every request

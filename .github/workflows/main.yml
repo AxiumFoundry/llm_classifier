@@ -3,8 +3,12 @@ name: CI
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -33,10 +37,20 @@ jobs:
     - name: Run linter
       run: bundle exec rubocop
 
+    - name: Build gem
+      run: gem build llm_classifier.gemspec
+
+  # Publishes to RubyGems.org via trusted publishing (OIDC) when a vX.Y.Z tag is pushed.
+  # The rubygems.org trusted publisher is bound to this workflow file and the "release" environment.
   release:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment: release
+
+    permissions:
+      contents: write
+      id-token: write
 
     steps:
     - uses: actions/checkout@v4
@@ -47,5 +61,14 @@ jobs:
         ruby-version: '4.0'
         bundler-cache: true
 
-    - name: Build gem
-      run: gem build llm_classifier.gemspec
+    # rake release tags and pushes whatever version.rb says, so refuse a tag that doesn't match it.
+    - name: Check tag matches gem version
+      run: |
+        version=$(ruby -r ./lib/llm_classifier/version -e 'print LlmClassifier::VERSION')
+        if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+          echo "::error::Tag $GITHUB_REF_NAME does not match lib/llm_classifier/version.rb ($version)"
+          exit 1
+        fi
+
+    - name: Publish to RubyGems.org
+      uses: rubygems/release-gem@7f9650160c1a4e7989fdc9855807bdbd421d8b6b # v1.4.1
